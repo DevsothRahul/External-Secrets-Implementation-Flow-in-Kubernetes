@@ -238,24 +238,7 @@ kubectl apply -f my-app-deployment.yaml
 
 ## 🔎 Architecture Flow Diagram
 
-```mermaid
-flowchart TD
-    A[AWS Secrets Manager] -->|Stores DB credentials| B[External Secrets Operator (ESO)]
-    B -->|Reads using AWS IAM user (access-key & secret-key)| C[ClusterSecretStore]
-    C -->|Syncs secrets| D[Kubernetes Secret (my-db-secret)]
-    D -->|Injected as ENV vars| E[Application Pod]
-
-    subgraph AWS
-    A
-    end
-
-    subgraph Kubernetes
-    B
-    C
-    D
-    E
-    end
-```
+![Architecture Flow Diagram](A_flowchart_diagram_illustrates_the_integration_of.png)
 
 ---
 
