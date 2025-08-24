@@ -1,96 +1,42 @@
-# External-Secrets-Implementation-Flow-in-Kubernetes
+# External Secrets Implementation Flow in Kubernetes  
+### Using AWS Secrets Manager with External Secrets Operator (ESO)
 
+---
 
-Using AWS Secrets Manager with External Secrets Operator (ESO)
-📖 Overview
+## 📖 Overview
+The **External Secrets Operator (ESO)** allows you to synchronize secrets from **AWS Secrets Manager** into **Kubernetes** seamlessly.  
 
-The External Secrets Operator (ESO) allows you to synchronize secrets from AWS Secrets Manager into Kubernetes seamlessly.
+This guide covers:  
+- Installing External Secrets Operator  
+- Configuring AWS credentials for ESO  
+- Storing secrets in AWS Secrets Manager  
+- Creating `ExternalSecret` resources to inject AWS secrets into Kubernetes  
 
-This guide covers:
+---
 
-Installing External Secrets Operator
+## 🛠️ 1. Install External Secrets Operator
+Install ESO using **Helm**:
 
-Configuring AWS credentials for ESO
+```bash
+helm repo add external-secrets https://charts.external-secrets.io
+helm repo update
+helm install external-secrets external-secrets/external-secrets   --namespace external-secrets --create-namespace
+```
 
-Storing secrets in AWS Secrets Manager
+Verify installation:
 
-Creating ExternalSecret resources to inject AWS secrets into Kubernetes
+```bash
+kubectl get pods -n external-secrets
+```
 
+---
 
+## 🔑 2. Create an AWS IAM User for ESO
 
+### 2.1 Create an IAM Policy
+Save the following policy as **`eso-secrets-policy.json`**:
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
- AWS Secrets Manager using External Secrets Operator (ESO)
-
-
- Overview
-External Secrets Operator (ESO) allows you to synchronize secrets from AWS Secrets Manager into Kubernetes. This guide covers:
-
-Installing External Secrets Operator.
-
-Configuring AWS credentials for ESO.
-
-Storing secrets in AWS Secrets Manager.
-
-Creating ExternalSecret resources to inject AWS secrets into Kubernetes.
-
-1. Install External Secrets Operator
-  You can install ESO using Helm:
-    helm repo add external-secrets https://charts.external-secrets.io
-    helm repo update
-    helm install external-secrets external-secrets/external-secrets \   
-    --namespace external-secrets  --create-namespace
-
-
-   Verify the installation:
-
-  kubectl get pods -n external-secrets
-
-2. Create an AWS IAM User for ESO
-To allow ESO to fetch secrets from AWS Secrets Manager, create an IAM policy:
-
-2.1 Create an IAM Policy
-Save the following policy as eso-secrets-policy.json:
-
+```json
 {
   "Version": "2012-10-17",
   "Statement": [
@@ -105,30 +51,38 @@ Save the following policy as eso-secrets-policy.json:
     }
   ]
 }
+```
 
 Create the policy:
 
+```bash
 aws iam create-policy --policy-name ESOSecretsPolicy --policy-document file://eso-secrets-policy.json
+```
 
+### 2.2 Generate Access Keys
+Create access keys for the IAM user:
 
-2.3 Generate Access Keys
-Generate AWS credentials:
-
+```bash
 aws iam create-access-key --user-name eso-user
+```
 
-Copy the Access Key ID and Secret Access Key.
+Copy the **Access Key ID** and **Secret Access Key**.
 
+---
 
-3. Store Secrets in AWS Secrets Manager
-You can store your database credentials in AWS Secrets Manager:
+## 🔐 3. Store Secrets in AWS Secrets Manager
+Store database credentials:
 
-aws secretsmanager create-secret --name my-db-secret \     
---secret-string '{"username":"dbuser","password":"dbpassword","host":"dbhost","port":"5432"}'
+```bash
+aws secretsmanager create-secret --name my-db-secret   --secret-string '{"username":"dbuser","password":"dbpassword","host":"dbhost","port":"5432"}'
+```
 
+---
 
-4. Create a Kubernetes Secret for AWS Credentials
-Store AWS credentials in a Kubernetes secret:
+## 📦 4. Create a Kubernetes Secret for AWS Credentials
+Create a **Kubernetes Secret** to store AWS credentials:
 
+```yaml
 apiVersion: v1
 kind: Secret
 metadata:
@@ -137,60 +91,28 @@ metadata:
 type: Opaque
 data:
   access-key: <base64-encoded-access-key>
-  secret-key: <base64-encoded-secret-key> 
+  secret-key: <base64-encoded-secret-key>
+```
 
-Encode the keys using:
+Encode the keys:
 
-echo -n "your-access-key" | base64 echo -n "your-secret-key" | base64
+```bash
+echo -n "your-access-key" | base64
+echo -n "your-secret-key" | base64
+```
 
 Apply the secret:
 
+```bash
 kubectl apply -f aws-secret.yaml
+```
 
+---
 
-5. Create an External Secret
-Define an ExternalSecret that syncs the AWS secret into Kubernetes.
+## 📄 5. Create a ClusterSecretStore
+Define how ESO connects to AWS Secrets Manager:
 
-
-
-apiVersion: external-secrets.io/v1beta1
-kind: ExternalSecret
-metadata:
-  name: my-db-secret
-  namespace: default
-spec:
-  refreshInterval: 1h
-  secretStoreRef:
-    name: aws-secret-store
-    kind: ClusterSecretStore
-  target:
-    name: my-db-secret
-    data:
-      - secretKey: username
-        remoteRef:
-          key: my-db-secret
-          property: username
-      - secretKey: password
-        remoteRef:
-          key: my-db-secret
-          property: password
-      - secretKey: host
-        remoteRef:
-          key: my-db-secret
-          property: host
-      - secretKey: port
-        remoteRef:
-          key: my-db-secret
-          property: port
-
-Apply it:
-
-kubectl apply -f external-secret.yaml
-          
-
-6. Create a Secret Store
-Create a ClusterSecretStore to configure how ESO accesses AWS Secrets Manager:
-
+```yaml
 apiVersion: external-secrets.io/v1beta1
 kind: ClusterSecretStore
 metadata:
@@ -210,25 +132,79 @@ spec:
             name: aws-secret
             key: secret-key
             namespace: external-secrets
+```
 
 Apply it:
+
+```bash
 kubectl apply -f cluster-secret-store.yaml
+```
 
+---
 
-7. Verify the Secret Sync
+## 🔄 6. Create an External Secret
+Define the **ExternalSecret** that syncs the AWS secret into Kubernetes:
+
+```yaml
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: my-db-secret
+  namespace: default
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: aws-secret-store
+    kind: ClusterSecretStore
+  target:
+    name: my-db-secret
+  data:
+    - secretKey: username
+      remoteRef:
+        key: my-db-secret
+        property: username
+    - secretKey: password
+      remoteRef:
+        key: my-db-secret
+        property: password
+    - secretKey: host
+      remoteRef:
+        key: my-db-secret
+        property: host
+    - secretKey: port
+      remoteRef:
+        key: my-db-secret
+        property: port
+```
+
+Apply it:
+
+```bash
+kubectl apply -f external-secret.yaml
+```
+
+---
+
+## ✅ 7. Verify the Secret Sync
 Check if the secret was created in Kubernetes:
 
+```bash
 kubectl get secrets my-db-secret
+```
 
-Decode the secret:
+Decode the values:
 
-kubectl get secret my-db-secret -o jsonpath='{.data.username}' | base64 --decode kubectl get secret my-db-secret -o jsonpath='{.data.password}' | base64 --decode
+```bash
+kubectl get secret my-db-secret -o jsonpath='{.data.username}' | base64 --decode
+kubectl get secret my-db-secret -o jsonpath='{.data.password}' | base64 --decode
+```
 
+---
 
-8. Update Your Application Deployment
-Modify your application deployment to use the synced secret:
+## 🚀 8. Update Your Application Deployment
+Use the synced secret in your application:
 
-
+```yaml
 env:
   - name: DB_USERNAME
     valueFrom:
@@ -250,17 +226,38 @@ env:
       secretKeyRef:
         name: my-db-secret
         key: port
+```
 
-Apply your deployment update:
+Apply your deployment:
 
+```bash
 kubectl apply -f my-app-deployment.yaml
+```
 
+---
 
+## 🔎 Architecture Flow Diagram
 
+```mermaid
+flowchart TD
+    A[AWS Secrets Manager] -->|Stores DB credentials| B[External Secrets Operator (ESO)]
+    B -->|Reads using AWS IAM user (access-key & secret-key)| C[ClusterSecretStore]
+    C -->|Syncs secrets| D[Kubernetes Secret (my-db-secret)]
+    D -->|Injected as ENV vars| E[Application Pod]
 
-  
+    subgraph AWS
+    A
+    end
 
+    subgraph Kubernetes
+    B
+    C
+    D
+    E
+    end
+```
 
+---
 
-
-  
+## 🎯 Conclusion
+With **External Secrets Operator**, Kubernetes applications can securely fetch secrets from **AWS Secrets Manager**, ensuring centralized secret management and reduced security risks.
